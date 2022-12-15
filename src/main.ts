@@ -16,7 +16,7 @@ async function bootstrap() {
   );
   app.setGlobalPrefix('api');
   app.enableCors();
-  app.use(helmet());
+  // app.use(helmet());
   const config = new DocumentBuilder()
     .setTitle('Smartlock')
     .setDescription(`Smartlock's API`)
