@@ -6,7 +6,7 @@ import {
 import { Server, Socket } from 'socket.io';
 import { RoomService } from './room.service';
 
-@WebSocketGateway(80, { cors: true, namespace: '/room' })
+@WebSocketGateway({ cors: true, namespace: '/room' })
 export class RoomGateway {
   constructor(private readonly roomService: RoomService) {}
   @WebSocketServer() public server: Server;
