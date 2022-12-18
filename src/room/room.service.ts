@@ -9,6 +9,7 @@ import { CloudinaryService } from 'src/cloudinary/cloudinary.service';
 import * as QRCode from 'qrcode';
 import { Book, Room, User } from '@prisma/client';
 import { Server } from 'socket.io';
+import * as moment from 'moment';
 
 @Injectable()
 export class RoomService {
@@ -95,9 +96,13 @@ export class RoomService {
       template: './confirmation',
       context: {
         email,
-        startedAt: startedAt.toLocaleString(),
-        endedAt: endedAt.toLocaleString(),
-        room,
+        startedAt: moment(startedAt).format('LLLL'),
+        endedAt: moment(endedAt).format('LLLL'),
+        room: room
+          .toLowerCase()
+          .split('-')
+          .map((word) => word.charAt(0).toUpperCase() + word.substring(1))
+          .join(' '),
       },
       attachments: [
         {
@@ -116,7 +121,17 @@ export class RoomService {
     url: string,
   ) {
     return this.twilioService.client.messages.create({
-      body: `Hello Sir/Madam,\nWe have confirmed your checked in for Pipe Room number ${room}. \nYou can use the QR code below to unlock your room. \nQR_Code: ${url} \nThe code will be valid from ${startedAt.toLocaleString()} 2pm to ${endedAt.toLocaleString()} 12am. \nPlease make sure you take everything out of the room before 12am. \nThank you, \nVkirirom Pine Resort`,
+      body: `Hello Sir/Madam,\nWe have confirmed your checked in for Pipe Room number ${room
+        .toLowerCase()
+        .split('-')
+        .map((word) => word.charAt(0).toUpperCase() + word.substring(1))
+        .join(
+          ' ',
+        )}. \nYou can use the QR code below to unlock your room. \nQR_Code: ${url} \nThe code will be valid from ${moment(
+        startedAt,
+      ).format('LLLL')} to ${moment(endedAt).format(
+        'LLLL',
+      )}. \nPlease make sure you take everything out of the room before 12am. \nThank you, \nVkirirom Pine Resort`,
       from: process.env.TWILIO_PHONE_NUMBER,
       to: phoneNumber,
     });
