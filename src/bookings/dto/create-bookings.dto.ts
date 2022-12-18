@@ -23,6 +23,16 @@ export class CreateBookingDto {
   phoneNumber?: string;
 
   @ApiProperty()
+  @Type(() => Date)
+  @IsDate()
+  startedAt: Date;
+
+  @ApiProperty()
+  @Type(() => Date)
+  @IsDate()
+  endedAt: Date;
+
+  @ApiProperty()
   @IsNotEmpty()
   @IsString()
   room: string;
@@ -34,14 +44,4 @@ export class CreateBookingsDto {
   @Type(() => CreateBookingDto)
   @IsNotEmpty()
   items: CreateBookingDto[];
-
-  @ApiProperty()
-  @Type(() => Date)
-  @IsDate()
-  startedAt: Date;
-
-  @ApiProperty()
-  @Type(() => Date)
-  @IsDate()
-  endedAt: Date;
 }

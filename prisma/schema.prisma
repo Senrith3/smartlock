@@ -37,10 +37,11 @@ model Book {
   roomId    String
   startedAt DateTime
   endedAt   DateTime
-  status    BookStatus @default(IN_PROGRESS)
+  status    BookStatus @default(BOOKED)
 }
 
 enum BookStatus {
+  BOOKED
   IN_PROGRESS
   FINISHED
   CANCELED
