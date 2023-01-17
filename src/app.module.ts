@@ -1,12 +1,15 @@
 import { MiddlewareConsumer, Module, RequestMethod } from '@nestjs/common';
 import { PreauthMiddleware } from './preauth.middleware';
-import { PrismaService } from './prisma.service';
 import { BookingsModule } from './bookings/bookings.module';
 import { RoomModule } from './room/room.module';
+import { ConfigModule } from '@nestjs/config';
 
 @Module({
-  imports: [BookingsModule, RoomModule],
-  providers: [PrismaService],
+  imports: [
+    BookingsModule,
+    RoomModule,
+    ConfigModule.forRoot({ isGlobal: true }),
+  ],
 })
 export class AppModule {
   configure(consumer: MiddlewareConsumer) {

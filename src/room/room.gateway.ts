@@ -4,6 +4,7 @@ import {
   WebSocketServer,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
+import { SocketDto } from './dto/socket.dto';
 import { RoomService } from './room.service';
 
 @WebSocketGateway({ cors: true, namespace: '/room' })
@@ -16,30 +17,30 @@ export class RoomGateway {
   }
 
   @SubscribeMessage('joinRoom')
-  async handleRoomJoin(client: Socket, room: string) {
-    const verified = await this.roomService.verifyClient(client);
+  async handleRoomJoin(client: Socket, data: SocketDto) {
+    const verified = await this.roomService.verifyClient(client, data);
 
     if (!verified) {
       client.disconnect();
       return;
     }
 
-    client.join(room);
+    client.join(data.room);
     client.join('allRoom');
-    client.emit('joinedRoom', room);
+    client.emit('joinedRoom', data.room);
   }
 
   @SubscribeMessage('leaveRoom')
-  async handleRoomLeave(client: Socket, room: string) {
-    const verified = await this.roomService.verifyClient(client);
+  async handleRoomLeave(client: Socket, data: SocketDto) {
+    const verified = await this.roomService.verifyClient(client, data);
 
     if (!verified) {
       client.disconnect();
       return;
     }
 
-    client.leave(room);
+    client.leave(data.room);
     client.leave('allRoom');
-    client.emit('leftRoom', room);
+    client.emit('leftRoom', data.room);
   }
 }

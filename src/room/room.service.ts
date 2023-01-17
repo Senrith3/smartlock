@@ -1,33 +1,37 @@
 import { Injectable } from '@nestjs/common';
-import { PrismaService } from 'src/prisma.service';
-import { CreateRoomDto } from './dto/create-room.dto';
-import { UpdateRoomDto } from './dto/update-room.dto';
 import { Socket } from 'socket.io';
 import { MailerService } from '@nestjs-modules/mailer';
 import { TwilioService } from 'nestjs-twilio';
 import { CloudinaryService } from 'src/cloudinary/cloudinary.service';
 import * as QRCode from 'qrcode';
-import { Book, Room, User } from '@prisma/client';
 import { Server } from 'socket.io';
 import * as moment from 'moment';
+import { CheckInDto } from './dto/check-in.dto';
+import { InjectRedis } from '@liaoliaots/nestjs-redis';
+import Redis from 'ioredis';
+import { CheckOutDto } from './dto/check-out.dto';
+import { randomUUID } from 'crypto';
+import { SocketDto } from './dto/socket.dto';
 
 @Injectable()
 export class RoomService {
   constructor(
-    private prisma: PrismaService,
     private mailerService: MailerService,
     private readonly twilioService: TwilioService,
     private cloudinary: CloudinaryService,
+    @InjectRedis() private readonly redis: Redis,
   ) {}
 
   public socket: Server = null;
 
-  async verifyClient(client: Socket) {
+  async verifyClient(client: Socket, data: SocketDto) {
+    const key = await this.redis.get(data.room);
     const token = client.handshake.headers.authorization;
     if (
       token != null &&
       token != '' &&
-      token.replace('Bearer ', '') === process.env.API_KEY
+      token.replace('Bearer ', '') === process.env.ROOM_API_KEY &&
+      key === data.key
     ) {
       return true;
     } else {
@@ -35,57 +39,74 @@ export class RoomService {
     }
   }
 
-  async create(createRoomDto: CreateRoomDto) {
-    return await this.prisma.room.create({
-      data: createRoomDto,
-    });
-  }
+  async checkIn(data: CheckInDto) {
+    await QRCode.toFile(__dirname + '/code.png', data.code);
+    try {
+      if (data.email) {
+        await this.sendEmail(
+          data.email,
+          data.startedAt,
+          data.endedAt,
+          data.room,
+        );
+      } else {
+        const res = await this.cloudinary.uploadImage(__dirname + '/code.png');
+        await this.sendSMS(
+          data.phoneNumber,
+          data.startedAt,
+          data.endedAt,
+          data.room,
+          res.url,
+        );
+      }
+      this.socket.to(data.room).emit('checkIn', data.code);
+      return true;
+    } catch (err) {
+      console.log(err.message);
+      const id = `${data.room}:${data.startedAt}`;
+      const checkInKey = `event:room_check_in_date_reached:${id}`;
+      const checkInKeyData = `event:room_check_in_date_reached:${id}:data`;
+      const checkOutKey = `event:room_check_out_date_reached:${id}`;
 
-  async update(name: string, updateRoomDto: UpdateRoomDto) {
-    return await this.prisma.room.update({
-      data: updateRoomDto,
-      where: { name },
-    });
-  }
+      const endedAt = moment(data.endedAt);
 
-  async remove(name: string) {
-    return await this.prisma.room.delete({
-      where: { name },
-    });
-  }
-
-  async unlockAll() {
-    return await this.prisma.room.updateMany({ data: { unlocked: true } });
-  }
-
-  async lockAll() {
-    return await this.prisma.room.updateMany({ data: { unlocked: false } });
-  }
-
-  async checkIn(
-    book: Book & {
-      Room: Room;
-      User: User;
-    },
-  ) {
-    await QRCode.toFile(__dirname + '/code.png', book.code);
-    if (book.User.email) {
-      await this.sendEmail(
-        book.User.email,
-        book.startedAt,
-        book.endedAt,
-        book.Room.name,
+      const checkInKeyExpireIn = 300;
+      const checkOutKeyExpireIn = Math.max(
+        1,
+        endedAt.diff(moment(), 'seconds'),
       );
-    } else {
-      const res = await this.cloudinary.uploadImage(__dirname + '/code.png');
-      await this.sendSMS(
-        book.User.phoneNumber,
-        book.startedAt,
-        book.endedAt,
-        book.Room.name,
-        res.url,
-      );
+
+      this.redis
+        .setex(checkInKey, checkInKeyExpireIn, id)
+        .catch((err) => console.log(err));
+
+      this.redis
+        .set(checkInKeyData, JSON.stringify(data))
+        .catch((err) => console.log(err));
+
+      this.redis
+        .setex(checkOutKey, checkOutKeyExpireIn, id)
+        .catch((err) => console.log(err));
+      return false;
     }
+  }
+
+  async checkOut(data: CheckOutDto) {
+    const room = data.room.toLowerCase().replace(' ', '-');
+
+    const id = `${room}:${data.startedAt}`;
+    const checkInKey = `event:room_check_in_date_reached:${id}`;
+    const checkInKeyData = `event:room_check_in_date_reached:${id}:data`;
+    const checkOutKey = `event:room_check_out_date_reached:${id}`;
+
+    await this.redis.del([checkInKey, checkInKeyData, checkOutKey]);
+
+    if (
+      moment(data.endedAt).startOf('D').isSame(moment().startOf('D'), 'day')
+    ) {
+      this.socket.to(room).emit('checkOut');
+    }
+    return true;
   }
 
   async sendEmail(email: string, startedAt: Date, endedAt: Date, room: string) {
@@ -135,5 +156,20 @@ export class RoomService {
       from: process.env.TWILIO_PHONE_NUMBER,
       to: phoneNumber,
     });
+  }
+
+  async getAllConnectedRooms() {
+    const sockets = await this.socket.fetchSockets();
+    return sockets.map((i) => [...i.rooms][1]);
+  }
+
+  async setRoomsKey(rooms: string[]) {
+    rooms = rooms.map((r) => r.toLowerCase().replace(' ', '-'));
+    const data = rooms.reduce((res: [], room) => {
+      const key = randomUUID();
+      this.redis.set(room, key);
+      return [...res, { room, key }];
+    }, []);
+    return data;
   }
 }

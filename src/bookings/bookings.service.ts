@@ -1,6 +1,5 @@
 import { Injectable, NotAcceptableException } from '@nestjs/common';
 import { randomUUID } from 'crypto';
-import { PrismaService } from 'src/prisma.service';
 import { CreateBookingsDto } from './dto/create-bookings.dto';
 import { InjectRedis } from '@liaoliaots/nestjs-redis';
 import Redis from 'ioredis';
@@ -8,10 +7,7 @@ import * as moment from 'moment';
 
 @Injectable()
 export class BookingsService {
-  constructor(
-    private prisma: PrismaService,
-    @InjectRedis() private readonly redis: Redis,
-  ) {}
+  constructor(@InjectRedis() private readonly redis: Redis) {}
 
   async createBookings(createBookingsDto: CreateBookingsDto) {
     const { items } = createBookingsDto;
@@ -64,36 +60,10 @@ export class BookingsService {
         return [
           ...res,
           {
-            data: {
-              id: `${room}:${startedAt}`,
-              startedAt,
-              endedAt,
-              code: randomUUID(),
-              Room: {
-                connectOrCreate: {
-                  where: {
-                    name: room,
-                  },
-                  create: {
-                    name: room,
-                  },
-                },
-              },
-              User: {
-                connectOrCreate: {
-                  where: {
-                    email_phoneNumber: {
-                      email,
-                      phoneNumber,
-                    },
-                  },
-                  create: {
-                    email,
-                    phoneNumber,
-                  },
-                },
-              },
-            },
+            id: `${room}:${startedAt}`,
+            startedAt,
+            endedAt,
+            code: randomUUID(),
             email,
             room,
             phoneNumber,
@@ -103,38 +73,33 @@ export class BookingsService {
       [],
     );
 
-    await this.prisma.$transaction(async (tx) => {
-      for (const transaction of transactions) {
-        await tx.book.upsert({
-          where: { id: transaction.data.id },
-          create: transaction.data,
-          update: transaction.data,
-        });
-      }
-    });
-
     for (const i of transactions) {
-      const checkInKey = `event:room_check_in_date_reached:${i.data.id}`;
-      const checkOutKey = `event:room_check_out_date_reached:${i.data.id}`;
+      const checkInKey = `event:room_check_in_date_reached:${i.id}`;
+      const checkInKeyData = `event:room_check_in_date_reached:${i.id}:data`;
+      const checkOutKey = `event:room_check_out_date_reached:${i.id}`;
 
-      const startedAt = moment(i.data.startedAt);
-      const endedAt = moment(i.data.endedAt);
+      const startedAt = moment(i.startedAt);
+      const endedAt = moment(i.endedAt);
 
       const checkInKeyExpireIn = Math.max(
         1,
         startedAt.diff(moment(), 'seconds'),
       );
       const checkOutKeyExpireIn = Math.max(
-        1,
+        10,
         endedAt.diff(moment(), 'seconds'),
       );
 
       this.redis
-        .setex(checkInKey, checkInKeyExpireIn, i.data.id)
+        .setex(checkInKey, checkInKeyExpireIn, i.id)
         .catch((err) => console.log(err));
 
       this.redis
-        .setex(checkOutKey, checkOutKeyExpireIn, i.data.id)
+        .set(checkInKeyData, JSON.stringify(i))
+        .catch((err) => console.log(err));
+
+      this.redis
+        .setex(checkOutKey, checkOutKeyExpireIn, i.id)
         .catch((err) => console.log(err));
     }
 

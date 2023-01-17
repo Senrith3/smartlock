@@ -1,7 +1,6 @@
 import { Module } from '@nestjs/common';
 import { RoomService } from './room.service';
 import { RoomController } from './room.controller';
-import { PrismaService } from 'src/prisma.service';
 import { MailerModule } from '@nestjs-modules/mailer';
 import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handlebars.adapter';
 import { join } from 'path';
@@ -38,6 +37,6 @@ import { RoomGateway } from './room.gateway';
     CloudinaryModule,
   ],
   controllers: [RoomController],
-  providers: [RoomGateway, RoomService, PrismaService],
+  providers: [RoomGateway, RoomService],
 })
 export class RoomModule {}

@@ -1,9 +1,14 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsNotEmpty, IsString } from 'class-validator';
 
-export class CreateRoomDto {
+export class SocketDto {
   @ApiProperty()
   @IsNotEmpty()
   @IsString()
-  name: string;
+  room: string;
+
+  @ApiProperty()
+  @IsNotEmpty()
+  @IsString()
+  key: string;
 }

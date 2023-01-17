@@ -1,40 +1,23 @@
-import { Controller, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import { Controller, Post, Body, Patch, Param, Get } from '@nestjs/common';
 import { RoomService } from './room.service';
-import { CreateRoomDto } from './dto/create-room.dto';
-import { UpdateRoomDto } from './dto/update-room.dto';
 import { ApiBearerAuth } from '@nestjs/swagger';
-import { Book, Room, User } from '@prisma/client';
+import { CheckInDto } from './dto/check-in.dto';
+import { CheckOutDto } from './dto/check-out.dto';
+import { SetRoomsKeyDto } from './dto/set-rooms-key.dto';
 
 @ApiBearerAuth()
 @Controller('room')
 export class RoomController {
   constructor(private readonly roomService: RoomService) {}
 
-  @Post()
-  create(@Body() createRoomDto: CreateRoomDto) {
-    return this.roomService.create(createRoomDto);
-  }
-
   @Post('checkIn')
-  async checkIn(
-    @Body()
-    data: Book & {
-      Room: Room;
-      User: User;
-    },
-  ) {
-    await this.roomService.checkIn(data);
-    return this.roomService.socket
-      .to(data.Room.name)
-      .emit('checkIn', data.code);
+  async checkIn(@Body() checkInDto: CheckInDto) {
+    return await this.roomService.checkIn(checkInDto);
   }
 
   @Post('checkOut')
-  checkOut(
-    @Body()
-    data,
-  ) {
-    return this.roomService.socket.to(data.room).emit('checkOut');
+  checkOut(@Body() checkOutDto: CheckOutDto) {
+    return this.roomService.checkOut(checkOutDto);
   }
 
   @Patch('unlockAll')
@@ -57,13 +40,13 @@ export class RoomController {
     return this.roomService.socket.to(name).emit('lock');
   }
 
-  @Patch(':name')
-  update(@Param('name') name: string, @Body() updateRoomDto: UpdateRoomDto) {
-    return this.roomService.update(name, updateRoomDto);
+  @Get('getAllConnectedRooms')
+  async getAllConnectedRooms() {
+    return await this.roomService.getAllConnectedRooms();
   }
 
-  @Delete(':name')
-  remove(@Param('name') name: string) {
-    return this.roomService.remove(name);
+  @Post('setRoomsKey')
+  async setRoomsKey(@Body() setRoomsKey: SetRoomsKeyDto) {
+    return await this.roomService.setRoomsKey(setRoomsKey.rooms);
   }
 }

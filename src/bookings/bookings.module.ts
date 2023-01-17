@@ -1,7 +1,6 @@
 import { Module } from '@nestjs/common';
 import { BookingsService } from './bookings.service';
 import { BookingsController } from './bookings.controller';
-import { PrismaService } from 'src/prisma.service';
 import { RedisModule } from '@liaoliaots/nestjs-redis';
 
 @Module({
@@ -9,12 +8,12 @@ import { RedisModule } from '@liaoliaots/nestjs-redis';
     RedisModule.forRoot({
       config: {
         host: process.env.REDIS_HOST,
-        port: parseInt(process.env.REDIS_PORT),
+        port: process.env.REDIS_PORT as unknown as number,
         password: process.env.REDIS_PASSWORD,
       },
     }),
   ],
   controllers: [BookingsController],
-  providers: [BookingsService, PrismaService],
+  providers: [BookingsService],
 })
 export class BookingsModule {}
