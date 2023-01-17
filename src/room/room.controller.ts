@@ -27,7 +27,9 @@ export class RoomController {
 
   @Patch('unlock/:name')
   unlockRoom(@Param('name') name: string) {
-    return this.roomService.socket.to(name).emit('unlock');
+    return this.roomService.socket
+      .to(name.toLowerCase().split(' ').join('-'))
+      .emit('unlock');
   }
 
   @Patch('lockAll')
@@ -37,7 +39,9 @@ export class RoomController {
 
   @Patch('lock/:name')
   lockRoom(@Param('name') name: string) {
-    return this.roomService.socket.to(name).emit('lock');
+    return this.roomService.socket
+      .to(name.toLowerCase().split(' ').join('-'))
+      .emit('lock');
   }
 
   @Get('getAllConnectedRooms')

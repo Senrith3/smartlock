@@ -25,7 +25,9 @@ export class RoomService {
   public socket: Server = null;
 
   async verifyClient(client: Socket, data: SocketDto) {
-    const key = await this.redis.get(data.room);
+    const key = await this.redis.get(
+      data.room.toLowerCase().split(' ').join('-'),
+    );
     const token = client.handshake.headers.authorization;
     if (
       token != null &&
@@ -92,7 +94,7 @@ export class RoomService {
   }
 
   async checkOut(data: CheckOutDto) {
-    const room = data.room.toLowerCase().replace(' ', '-');
+    const room = data.room.toLowerCase().split(' ').join('-');
 
     const id = `${room}:${data.startedAt}`;
     const checkInKey = `event:room_check_in_date_reached:${id}`;
@@ -164,7 +166,7 @@ export class RoomService {
   }
 
   async setRoomsKey(rooms: string[]) {
-    rooms = rooms.map((r) => r.toLowerCase().replace(' ', '-'));
+    rooms = rooms.map((r) => r.toLowerCase().split(' ').join('-'));
     const data = rooms.reduce((res: [], room) => {
       const key = randomUUID();
       this.redis.set(room, key);
