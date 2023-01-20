@@ -2,14 +2,14 @@ import { Module } from '@nestjs/common';
 import { BookingsService } from './bookings.service';
 import { BookingsController } from './bookings.controller';
 import { RedisModule } from '@liaoliaots/nestjs-redis';
+import { ConfigModule } from '@nestjs/config';
 
 @Module({
   imports: [
+    ConfigModule.forRoot(),
     RedisModule.forRoot({
       config: {
-        host: process.env.REDIS_HOST,
-        port: process.env.REDIS_PORT as unknown as number,
-        password: process.env.REDIS_PASSWORD,
+        url: process.env.REDIS_URL,
       },
     }),
   ],
