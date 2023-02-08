@@ -12,6 +12,7 @@ import Redis from 'ioredis';
 import { CheckOutDto } from './dto/check-out.dto';
 import { randomUUID } from 'crypto';
 import { SocketDto } from './dto/socket.dto';
+import { ResetAdminKeyDto } from './dto/reset-admin-key.dto';
 
 @Injectable()
 export class RoomService {
@@ -175,7 +176,7 @@ export class RoomService {
     return data;
   }
 
-  async resetAdminKey() {
+  async resetAdminKey(resetAdminKeyDto: ResetAdminKeyDto) {
     const code = randomUUID();
     const endedAt = moment().day(8).startOf('D');
     const startedAt = moment();
@@ -184,7 +185,7 @@ export class RoomService {
       .setex('smart-lock=admin-key', endedAt.diff(startedAt, 'seconds'), code)
       .catch((err) => console.log(err));
     await this.sendEmail(
-      process.env.ADMIN_EMAIL,
+      resetAdminKeyDto.email ?? process.env.ADMIN_EMAIL,
       startedAt.toDate(),
       endedAt.toDate(),
       'Admin',

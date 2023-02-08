@@ -4,6 +4,7 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { CheckInDto } from './dto/check-in.dto';
 import { CheckOutDto } from './dto/check-out.dto';
 import { SetRoomsKeyDto } from './dto/set-rooms-key.dto';
+import { ResetAdminKeyDto } from './dto/reset-admin-key.dto';
 
 @ApiBearerAuth()
 @Controller('room')
@@ -54,8 +55,8 @@ export class RoomController {
 
   @ApiTags('Admin')
   @Patch('resetAdminKey')
-  resetAdminKey() {
-    return this.roomService.resetAdminKey();
+  resetAdminKey(@Body() resetAdminKeyDto: ResetAdminKeyDto) {
+    return this.roomService.resetAdminKey(resetAdminKeyDto);
   }
 
   @ApiTags('SmartLock Team')
