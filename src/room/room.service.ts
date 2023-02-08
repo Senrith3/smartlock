@@ -184,7 +184,7 @@ export class RoomService {
       .setex('smart-lock=admin-key', endedAt.diff(startedAt, 'seconds'), code)
       .catch((err) => console.log(err));
     await this.sendEmail(
-      'ney.senrith19@kit.edu.kh',
+      process.env.ADMIN_EMAIL,
       startedAt.toDate(),
       endedAt.toDate(),
       'Admin',
