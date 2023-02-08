@@ -24,16 +24,18 @@ export class RoomController {
 
   @ApiTags('Admin')
   @Patch('unlockAll')
-  unlockAll() {
-    return this.roomService.socket.to('allRoom').emit('unlock');
+  async unlockAll() {
+    const key = await this.roomService.getAdminKey();
+    return this.roomService.socket.to('allRoom').emit('unlock', key);
   }
 
   @ApiTags('Admin')
   @Patch('unlock/:name')
-  unlockRoom(@Param('name') name: string) {
+  async unlockRoom(@Param('name') name: string) {
+    const key = await this.roomService.getAdminKey();
     return this.roomService.socket
       .to(name.toLowerCase().split(' ').join('-'))
-      .emit('unlock');
+      .emit('unlock', key);
   }
 
   @ApiTags('Admin')
@@ -51,12 +53,18 @@ export class RoomController {
   }
 
   @ApiTags('Admin')
+  @Patch('resetAdminKey')
+  resetAdminKey() {
+    return this.roomService.resetAdminKey();
+  }
+
+  @ApiTags('SmartLock Team')
   @Get('getAllConnectedRooms')
   async getAllConnectedRooms() {
     return await this.roomService.getAllConnectedRooms();
   }
 
-  @ApiTags('Admin')
+  @ApiTags('SmartLock Team')
   @Post('setRoomsKey')
   async setRoomsKey(@Body() setRoomsKey: SetRoomsKeyDto) {
     return await this.roomService.setRoomsKey(setRoomsKey.rooms);

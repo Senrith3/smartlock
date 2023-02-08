@@ -174,4 +174,24 @@ export class RoomService {
     }, []);
     return data;
   }
+
+  async resetAdminKey() {
+    const code = randomUUID();
+    const endedAt = moment().day(8).startOf('D');
+    const startedAt = moment();
+    await QRCode.toFile(__dirname + '/code.png', code);
+    this.redis
+      .setex('smart-lock=admin-key', endedAt.diff(startedAt, 'seconds'), code)
+      .catch((err) => console.log(err));
+    await this.sendEmail(
+      'ney.senrith19@kit.edu.kh',
+      startedAt.toDate(),
+      endedAt.toDate(),
+      'Admin',
+    );
+  }
+
+  async getAdminKey() {
+    return await this.redis.get('smart-lock=admin-key');
+  }
 }
