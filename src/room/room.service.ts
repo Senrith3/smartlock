@@ -45,6 +45,10 @@ export class RoomService {
   async checkIn(data: CheckInDto) {
     await QRCode.toFile(__dirname + '/code.png', data.code);
     try {
+      const rooms = await this.getAllConnectedRooms();
+      if (!rooms.includes(data.room)) {
+        throw `Room ${data.room} in not connected`;
+      }
       if (data.email) {
         await this.sendEmail(
           data.email,
@@ -65,7 +69,7 @@ export class RoomService {
       this.socket.to(data.room).emit('checkIn', data.code);
       return true;
     } catch (err) {
-      console.log(err.message);
+      console.log(err);
       const id = `${data.room}:${data.startedAt}`;
       const checkInKey = `event:room_check_in_date_reached:${id}`;
       const checkInKeyData = `event:room_check_in_date_reached:${id}:data`;
@@ -73,7 +77,7 @@ export class RoomService {
 
       const endedAt = moment(data.endedAt);
 
-      const checkInKeyExpireIn = 300;
+      const checkInKeyExpireIn = 30;
       const checkOutKeyExpireIn = Math.max(
         1,
         endedAt.diff(moment(), 'seconds'),
@@ -96,18 +100,27 @@ export class RoomService {
 
   async checkOut(data: CheckOutDto) {
     const room = data.room.toLowerCase().split(' ').join('-');
-
     const id = `${room}:${data.startedAt}`;
     const checkInKey = `event:room_check_in_date_reached:${id}`;
     const checkInKeyData = `event:room_check_in_date_reached:${id}:data`;
     const checkOutKey = `event:room_check_out_date_reached:${id}`;
+    const rooms = await this.getAllConnectedRooms();
 
-    await this.redis.del([checkInKey, checkInKeyData, checkOutKey]);
+    if (!rooms.includes(data.room)) {
+      this.redis.setex(checkOutKey, 30, id).catch((err) => console.log(err));
+      return false;
+    }
+
+    const checkoutData = await this.redis.get(checkInKeyData);
+    if (!checkoutData) return false;
 
     if (
-      moment(data.endedAt).startOf('D').isSame(moment().startOf('D'), 'day')
+      moment(data.endedAt)
+        .startOf('D')
+        .isSame(moment(data.endedAt).startOf('D'), 'day')
     ) {
-      this.socket.to(room).emit('checkOut');
+      await this.redis.del([checkInKey, checkInKeyData, checkOutKey]);
+      this.socket.to(room).emit('checkOut', JSON.parse(checkoutData).code);
     }
     return true;
   }
