@@ -55,7 +55,10 @@ export class BookingsService {
           }
         } while (isExtended);
 
-        room = room.toLowerCase().replace(' ', '-');
+        room = room
+          .toLowerCase()
+          .replace(/ /g, '-')
+          .replace(/\b0*(\d+)/g, '$1');
 
         return [
           ...res,

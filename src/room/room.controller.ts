@@ -35,7 +35,12 @@ export class RoomController {
   async unlockRoom(@Param('name') name: string) {
     const key = await this.roomService.getAdminKey();
     return this.roomService.socket
-      .to(name.toLowerCase().split(' ').join('-'))
+      .to(
+        name
+          .toLowerCase()
+          .replace(/ /g, '-')
+          .replace(/\b0*(\d+)/g, '$1'),
+      )
       .emit('unlock', key);
   }
 
@@ -49,7 +54,12 @@ export class RoomController {
   @Patch('lock/:name')
   lockRoom(@Param('name') name: string) {
     return this.roomService.socket
-      .to(name.toLowerCase().split(' ').join('-'))
+      .to(
+        name
+          .toLowerCase()
+          .replace(/ /g, '-')
+          .replace(/\b0*(\d+)/g, '$1'),
+      )
       .emit('lock');
   }
 
