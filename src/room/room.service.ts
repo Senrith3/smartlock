@@ -42,10 +42,10 @@ export class RoomService {
   }
 
   async checkIn(data: CheckInDto) {
-    // const rooms = await this.getAllConnectedRooms();
-    // if (!rooms.includes(data.room)) {
-    //   throw `Room ${data.room} in not connected`;
-    // }
+    const rooms = await this.getAllConnectedRooms();
+    if (!rooms.includes(data.room)) {
+      throw `Room ${data.room} in not connected`;
+    }
     await this.sendCodeQueue
       .add(
         'sendCodeJob',
@@ -74,12 +74,12 @@ export class RoomService {
     const checkInKey = `event:room_check_in_date_reached:${id}`;
     const checkInKeyData = `event:room_check_in_date_reached:${id}:data`;
     const checkOutKey = `event:room_check_out_date_reached:${id}`;
-    // const rooms = await this.getAllConnectedRooms();
+    const rooms = await this.getAllConnectedRooms();
 
-    // if (!rooms.includes(data.room)) {
-    //   this.redis.setex(checkOutKey, 30, id).catch((err) => console.log(err));
-    //   return false;
-    // }
+    if (!rooms.includes(data.room)) {
+      this.redis.setex(checkOutKey, 30, id).catch((err) => console.log(err));
+      return false;
+    }
 
     const checkoutData = await this.redis.get(checkInKeyData);
     if (!checkoutData) return false;
