@@ -1,9 +1,5 @@
 import { Injectable } from '@nestjs/common';
 import { Socket } from 'socket.io';
-import { MailerService } from '@nestjs-modules/mailer';
-import { TwilioService } from 'nestjs-twilio';
-import { CloudinaryService } from 'src/cloudinary/cloudinary.service';
-import * as QRCode from 'qrcode';
 import { Server } from 'socket.io';
 import * as moment from 'moment';
 import { CheckInDto } from './dto/check-in.dto';
@@ -13,14 +9,14 @@ import { CheckOutDto } from './dto/check-out.dto';
 import { randomUUID } from 'crypto';
 import { SocketDto } from './dto/socket.dto';
 import { ResetAdminKeyDto } from './dto/reset-admin-key.dto';
+import { InjectQueue } from '@nestjs/bull';
+import { Queue } from 'bull';
 
 @Injectable()
 export class RoomService {
   constructor(
-    private mailerService: MailerService,
-    private readonly twilioService: TwilioService,
-    private cloudinary: CloudinaryService,
     @InjectRedis() private readonly redis: Redis,
+    @InjectQueue('send-code') private sendCodeQueue: Queue,
   ) {}
 
   public socket: Server = null;
@@ -46,59 +42,27 @@ export class RoomService {
   }
 
   async checkIn(data: CheckInDto) {
-    await QRCode.toFile(__dirname + '/code.png', data.code);
-    try {
-      const rooms = await this.getAllConnectedRooms();
-      if (!rooms.includes(data.room)) {
-        throw `Room ${data.room} in not connected`;
-      }
-      if (data.email) {
-        await this.sendEmail(
-          data.email,
-          data.startedAt,
-          data.endedAt,
-          data.room,
-        );
-      } else {
-        const res = await this.cloudinary.uploadImage(__dirname + '/code.png');
-        await this.sendSMS(
-          data.phoneNumber,
-          data.startedAt,
-          data.endedAt,
-          data.room,
-          res.url,
-        );
-      }
-      this.socket.to(data.room).emit('checkIn', data.code);
-      return true;
-    } catch (err) {
-      console.log(err);
-      const id = `${data.room}:${data.startedAt}`;
-      const checkInKey = `event:room_check_in_date_reached:${id}`;
-      const checkInKeyData = `event:room_check_in_date_reached:${id}:data`;
-      const checkOutKey = `event:room_check_out_date_reached:${id}`;
-
-      const endedAt = moment(data.endedAt);
-
-      const checkInKeyExpireIn = 30;
-      const checkOutKeyExpireIn = Math.max(
-        1,
-        endedAt.diff(moment(), 'seconds'),
-      );
-
-      this.redis
-        .setex(checkInKey, checkInKeyExpireIn, id)
-        .catch((err) => console.log(err));
-
-      this.redis
-        .set(checkInKeyData, JSON.stringify(data))
-        .catch((err) => console.log(err));
-
-      this.redis
-        .setex(checkOutKey, checkOutKeyExpireIn, id)
-        .catch((err) => console.log(err));
-      return false;
-    }
+    // const rooms = await this.getAllConnectedRooms();
+    // if (!rooms.includes(data.room)) {
+    //   throw `Room ${data.room} in not connected`;
+    // }
+    await this.sendCodeQueue
+      .add(
+        'sendCodeJob',
+        {
+          ...data,
+        },
+        {
+          attempts: 5,
+          backoff: {
+            type: 'exponential',
+            delay: 1000,
+          },
+        },
+      )
+      .catch((e) => console.log(e));
+    this.socket.to(data.room).emit('checkIn', data.code);
+    return true;
   }
 
   async checkOut(data: CheckOutDto) {
@@ -110,12 +74,12 @@ export class RoomService {
     const checkInKey = `event:room_check_in_date_reached:${id}`;
     const checkInKeyData = `event:room_check_in_date_reached:${id}:data`;
     const checkOutKey = `event:room_check_out_date_reached:${id}`;
-    const rooms = await this.getAllConnectedRooms();
+    // const rooms = await this.getAllConnectedRooms();
 
-    if (!rooms.includes(data.room)) {
-      this.redis.setex(checkOutKey, 30, id).catch((err) => console.log(err));
-      return false;
-    }
+    // if (!rooms.includes(data.room)) {
+    //   this.redis.setex(checkOutKey, 30, id).catch((err) => console.log(err));
+    //   return false;
+    // }
 
     const checkoutData = await this.redis.get(checkInKeyData);
     if (!checkoutData) return false;
@@ -129,55 +93,6 @@ export class RoomService {
       this.socket.to(room).emit('checkOut', JSON.parse(checkoutData).code);
     }
     return true;
-  }
-
-  async sendEmail(email: string, startedAt: Date, endedAt: Date, room: string) {
-    await this.mailerService.sendMail({
-      to: email,
-      from: '"Vkirirom" <support@example.com>',
-      subject: 'QR code for Pipe Room',
-      template: './confirmation',
-      context: {
-        email,
-        startedAt: moment(startedAt).format('LLLL'),
-        endedAt: moment(endedAt).format('LLLL'),
-        room: room
-          .toLowerCase()
-          .split('-')
-          .map((word) => word.charAt(0).toUpperCase() + word.substring(1))
-          .join(' '),
-      },
-      attachments: [
-        {
-          filename: 'code.png',
-          path: __dirname + '/code.png',
-        },
-      ],
-    });
-  }
-
-  async sendSMS(
-    phoneNumber: string,
-    startedAt: Date,
-    endedAt: Date,
-    room: string,
-    url: string,
-  ) {
-    return this.twilioService.client.messages.create({
-      body: `Hello Sir/Madam,\nWe have confirmed your checked in for Pipe Room number ${room
-        .toLowerCase()
-        .split('-')
-        .map((word) => word.charAt(0).toUpperCase() + word.substring(1))
-        .join(
-          ' ',
-        )}. \nYou can use the QR code below to unlock your room. \nQR_Code: ${url} \nThe code will be valid from ${moment(
-        startedAt,
-      ).format('LLLL')} to ${moment(endedAt).format(
-        'LLLL',
-      )}. \nPlease make sure you take everything out of the room before 12am. \nThank you, \nVkirirom Pine Resort`,
-      from: process.env.TWILIO_PHONE_NUMBER,
-      to: phoneNumber,
-    });
   }
 
   async getAllConnectedRooms() {
@@ -204,16 +119,15 @@ export class RoomService {
     const code = randomUUID();
     const endedAt = moment().day(8).startOf('D');
     const startedAt = moment();
-    await QRCode.toFile(__dirname + '/code.png', code);
     this.redis
       .setex('smart-lock=admin-key', endedAt.diff(startedAt, 'seconds'), code)
       .catch((err) => console.log(err));
-    await this.sendEmail(
-      resetAdminKeyDto.email ?? process.env.ADMIN_EMAIL,
-      startedAt.toDate(),
-      endedAt.toDate(),
-      'Admin',
-    );
+    await this.sendCodeQueue.add({
+      email: resetAdminKeyDto.email ?? process.env.ADMIN_EMAIL,
+      startedAt: startedAt.toDate(),
+      endedAt: endedAt.toDate(),
+      room: 'Admin',
+    });
   }
 
   async getAdminKey() {

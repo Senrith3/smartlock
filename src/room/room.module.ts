@@ -7,6 +7,8 @@ import { join } from 'path';
 import { TwilioModule } from 'nestjs-twilio';
 import { CloudinaryModule } from 'src/cloudinary/cloudinary.module';
 import { RoomGateway } from './room.gateway';
+import { BullModule } from '@nestjs/bull';
+import { SendCodeConsumer } from './room.processor';
 
 @Module({
   imports: [
@@ -34,9 +36,20 @@ import { RoomGateway } from './room.gateway';
       accountSid: process.env.TWILIO_ACCOUNT_SID,
       authToken: process.env.TWILIO_AUTH_TOKEN,
     }),
+    BullModule.forRoot({
+      redis: {
+        host: process.env.REDIS_HOST,
+        port: Number(process.env.REDIS_PORT),
+        password: process.env.REDIS_PASSWORD,
+        db: 0,
+      },
+    }),
+    BullModule.registerQueue({
+      name: 'send-code',
+    }),
     CloudinaryModule,
   ],
   controllers: [RoomController],
-  providers: [RoomGateway, RoomService],
+  providers: [RoomGateway, RoomService, SendCodeConsumer],
 })
 export class RoomModule {}
