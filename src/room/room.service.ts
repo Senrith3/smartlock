@@ -122,12 +122,23 @@ export class RoomService {
     this.redis
       .setex('smart-lock=admin-key', endedAt.diff(startedAt, 'seconds'), code)
       .catch((err) => console.log(err));
-    await this.sendCodeQueue.add({
-      email: resetAdminKeyDto.email ?? process.env.ADMIN_EMAIL,
-      startedAt: startedAt.toDate(),
-      endedAt: endedAt.toDate(),
-      room: 'Admin',
-    });
+    await this.sendCodeQueue.add(
+      'sendCodeJob',
+      {
+        email: resetAdminKeyDto.email ?? process.env.ADMIN_EMAIL,
+        startedAt: startedAt.toDate(),
+        endedAt: endedAt.toDate(),
+        room: 'Admin',
+        code,
+      },
+      {
+        attempts: 5,
+        backoff: {
+          type: 'exponential',
+          delay: 1000,
+        },
+      },
+    );
   }
 
   async getAdminKey() {
