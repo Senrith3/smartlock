@@ -11,6 +11,7 @@ import { SocketDto } from './dto/socket.dto';
 import { ResetAdminKeyDto } from './dto/reset-admin-key.dto';
 import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
+import { Cron } from '@nestjs/schedule';
 
 @Injectable()
 export class RoomService {
@@ -96,31 +97,24 @@ export class RoomService {
 
   async resetAdminKey(resetAdminKeyDto: ResetAdminKeyDto) {
     const code = randomUUID();
-    const endedAt = moment().day(8).startOf('D');
+    const endedAt = moment().add(1, 'weeks').startOf('isoWeek');
     const startedAt = moment();
-    this.redis
-      .setex('smart-lock=admin-key', endedAt.diff(startedAt, 'seconds'), code)
-      .catch((err) => console.log(err));
-    await this.sendCodeQueue.add(
-      'sendCodeJob',
-      {
-        email: resetAdminKeyDto.email ?? process.env.ADMIN_EMAIL,
-        startedAt: startedAt.toDate(),
-        endedAt: endedAt.toDate(),
-        room: 'Admin',
-        code,
-      },
-      {
-        attempts: 5,
-        backoff: {
-          type: 'exponential',
-          delay: 1000,
-        },
-      },
-    );
+    this.redis.set('smart-lock-admin-key', code);
+    await this.sendCodeQueue.add('sendCodeJob', {
+      email: resetAdminKeyDto.email ?? process.env.ADMIN_EMAIL,
+      startedAt: startedAt.toDate(),
+      endedAt: endedAt.toDate(),
+      room: 'Admin',
+      code,
+    });
   }
 
   async getAdminKey() {
-    return await this.redis.get('smart-lock=admin-key');
+    return await this.redis.get('smart-lock-admin-key');
+  }
+
+  @Cron('0 0 * * 1')
+  handleCron() {
+    this.resetAdminKey({});
   }
 }

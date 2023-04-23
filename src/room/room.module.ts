@@ -14,6 +14,7 @@ import {
   SendCodeConsumer,
 } from './room.processor';
 import { RedisModule } from '@liaoliaots/nestjs-redis';
+import { ScheduleModule } from '@nestjs/schedule';
 
 @Module({
   imports: [
@@ -47,6 +48,7 @@ import { RedisModule } from '@liaoliaots/nestjs-redis';
         url: process.env.REDIS_URL,
       },
     }),
+    ScheduleModule.forRoot(),
     BullModule.forRoot({
       redis: {
         host: process.env.REDIS_HOST,
