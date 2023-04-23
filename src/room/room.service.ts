@@ -17,6 +17,8 @@ export class RoomService {
   constructor(
     @InjectRedis() private readonly redis: Redis,
     @InjectQueue('send-code') private sendCodeQueue: Queue,
+    @InjectQueue('room-check-in') private roomCheckInQueue: Queue,
+    @InjectQueue('room-check-out') private roomCheckOutQueue: Queue,
   ) {}
 
   public socket: Server = null;
@@ -44,55 +46,32 @@ export class RoomService {
   async checkIn(data: CheckInDto) {
     const rooms = await this.getAllConnectedRooms();
     if (!rooms.includes(data.room)) {
-      throw `Room ${data.room} in not connected`;
+      throw new Error(`Room ${data.room} in not connected`);
     }
     await this.sendCodeQueue
-      .add(
-        'sendCodeJob',
-        {
-          ...data,
-        },
-        {
-          attempts: 5,
-          backoff: {
-            type: 'exponential',
-            delay: 1000,
-          },
-        },
-      )
+      .add('sendCodeJob', {
+        ...data,
+      })
       .catch((e) => console.log(e));
     this.socket.to(data.room).emit('checkIn', data.code);
-    return true;
   }
 
   async checkOut(data: CheckOutDto) {
-    const room = data.room
-      .toLowerCase()
-      .replace(/ /g, '-')
-      .replace(/\b0*(\d+)/g, '$1');
-    const id = `${room}:${data.startedAt}`;
-    const checkInKey = `event:room_check_in_date_reached:${id}`;
-    const checkInKeyData = `event:room_check_in_date_reached:${id}:data`;
-    const checkOutKey = `event:room_check_out_date_reached:${id}`;
     const rooms = await this.getAllConnectedRooms();
-
     if (!rooms.includes(data.room)) {
-      this.redis.setex(checkOutKey, 30, id).catch((err) => console.log(err));
-      return false;
+      throw new Error(`Room ${data.room} in not connected`);
     }
-
-    const checkoutData = await this.redis.get(checkInKeyData);
-    if (!checkoutData) return false;
-
-    if (
-      moment(data.endedAt)
-        .startOf('D')
-        .isSame(moment(data.endedAt).startOf('D'), 'day')
-    ) {
-      await this.redis.del([checkInKey, checkInKeyData, checkOutKey]);
-      this.socket.to(room).emit('checkOut', JSON.parse(checkoutData).code);
+    const id = `${data.room}:${data.startedAt}`;
+    let code = data.code;
+    if (!code) {
+      const checkInData = await this.roomCheckInQueue.getJob(id);
+      const checkOutData = await this.roomCheckOutQueue.getJob(id);
+      if (checkInData) code = checkInData.data.code;
+      if (checkOutData) code = checkOutData.data.code;
+      this.roomCheckInQueue.removeJobs(id);
+      this.roomCheckOutQueue.removeJobs(id);
     }
-    return true;
+    this.socket.to(data.room).emit('checkOut', code);
   }
 
   async getAllConnectedRooms() {

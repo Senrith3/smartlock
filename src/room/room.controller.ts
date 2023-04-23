@@ -1,7 +1,6 @@
 import { Controller, Post, Body, Patch, Param, Get } from '@nestjs/common';
 import { RoomService } from './room.service';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { CheckInDto } from './dto/check-in.dto';
 import { CheckOutDto } from './dto/check-out.dto';
 import { SetRoomsKeyDto } from './dto/set-rooms-key.dto';
 import { ResetAdminKeyDto } from './dto/reset-admin-key.dto';
@@ -11,13 +10,7 @@ import { ResetAdminKeyDto } from './dto/reset-admin-key.dto';
 export class RoomController {
   constructor(private readonly roomService: RoomService) {}
 
-  @ApiTags('SmartLock BG')
-  @Post('checkIn')
-  async checkIn(@Body() checkInDto: CheckInDto) {
-    return await this.roomService.checkIn(checkInDto);
-  }
-
-  @ApiTags('SmartLock BG', 'Admin')
+  @ApiTags('Admin')
   @Post('checkOut')
   checkOut(@Body() checkOutDto: CheckOutDto) {
     return this.roomService.checkOut(checkOutDto);

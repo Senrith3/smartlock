@@ -8,7 +8,12 @@ import { TwilioModule } from 'nestjs-twilio';
 import { CloudinaryModule } from 'src/cloudinary/cloudinary.module';
 import { RoomGateway } from './room.gateway';
 import { BullModule } from '@nestjs/bull';
-import { SendCodeConsumer } from './room.processor';
+import {
+  RoomCheckInConsumer,
+  RoomCheckOutConsumer,
+  SendCodeConsumer,
+} from './room.processor';
+import { RedisModule } from '@liaoliaots/nestjs-redis';
 
 @Module({
   imports: [
@@ -36,6 +41,12 @@ import { SendCodeConsumer } from './room.processor';
       accountSid: process.env.TWILIO_ACCOUNT_SID,
       authToken: process.env.TWILIO_AUTH_TOKEN,
     }),
+    CloudinaryModule,
+    RedisModule.forRoot({
+      config: {
+        url: process.env.REDIS_URL,
+      },
+    }),
     BullModule.forRoot({
       redis: {
         host: process.env.REDIS_HOST,
@@ -44,12 +55,46 @@ import { SendCodeConsumer } from './room.processor';
         db: 0,
       },
     }),
-    BullModule.registerQueue({
-      name: 'send-code',
-    }),
-    CloudinaryModule,
+    BullModule.registerQueue(
+      {
+        name: 'send-code',
+        defaultJobOptions: {
+          attempts: 5,
+          backoff: {
+            type: 'exponential',
+            delay: 10000,
+          },
+        },
+      },
+      {
+        name: 'room-check-in',
+        defaultJobOptions: {
+          attempts: 5,
+          backoff: {
+            type: 'exponential',
+            delay: 10000,
+          },
+        },
+      },
+      {
+        name: 'room-check-out',
+        defaultJobOptions: {
+          attempts: 5,
+          backoff: {
+            type: 'exponential',
+            delay: 15000,
+          },
+        },
+      },
+    ),
   ],
   controllers: [RoomController],
-  providers: [RoomGateway, RoomService, SendCodeConsumer],
+  providers: [
+    RoomGateway,
+    RoomService,
+    SendCodeConsumer,
+    RoomCheckInConsumer,
+    RoomCheckOutConsumer,
+  ],
 })
 export class RoomModule {}

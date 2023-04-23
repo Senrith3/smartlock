@@ -1,13 +1,16 @@
 import { Injectable, NotAcceptableException } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { CreateBookingsDto } from './dto/create-bookings.dto';
-import { InjectRedis } from '@liaoliaots/nestjs-redis';
-import Redis from 'ioredis';
 import * as moment from 'moment';
+import { InjectQueue } from '@nestjs/bull';
+import { Queue } from 'bull';
 
 @Injectable()
 export class BookingsService {
-  constructor(@InjectRedis() private readonly redis: Redis) {}
+  constructor(
+    @InjectQueue('room-check-in') private roomCheckInQueue: Queue,
+    @InjectQueue('room-check-out') private roomCheckOutQueue: Queue,
+  ) {}
 
   async createBookings(createBookingsDto: CreateBookingsDto) {
     const { items } = createBookingsDto;
@@ -76,35 +79,37 @@ export class BookingsService {
       [],
     );
 
-    for (const i of transactions) {
-      const checkInKey = `event:room_check_in_date_reached:${i.id}`;
-      const checkInKeyData = `event:room_check_in_date_reached:${i.id}:data`;
-      const checkOutKey = `event:room_check_out_date_reached:${i.id}`;
+    const checkInJobs = [];
+    const checkOutJobs = [];
 
-      const startedAt = moment(i.startedAt);
-      const endedAt = moment(i.endedAt);
+    for (const transcation of transactions) {
+      const oldCheckInJob = await this.roomCheckInQueue.getJob(transcation.id);
+      if (oldCheckInJob) await oldCheckInJob.remove();
+      checkInJobs.push({
+        name: 'checkInJob',
+        data: transcation,
+        opts: {
+          delay: Number(transcation.startedAt) - Number(Date.now()),
+          jobId: transcation.id,
+        },
+      });
 
-      const checkInKeyExpireIn = Math.max(
-        1,
-        startedAt.diff(moment(), 'seconds'),
+      const oldCheckOutJob = await this.roomCheckOutQueue.getJob(
+        transcation.id,
       );
-      const checkOutKeyExpireIn = Math.max(
-        10,
-        endedAt.diff(moment(), 'seconds'),
-      );
-
-      this.redis
-        .setex(checkInKey, checkInKeyExpireIn, i.id)
-        .catch((err) => console.log(err));
-
-      this.redis
-        .set(checkInKeyData, JSON.stringify(i))
-        .catch((err) => console.log(err));
-
-      this.redis
-        .setex(checkOutKey, checkOutKeyExpireIn, i.id)
-        .catch((err) => console.log(err));
+      if (oldCheckOutJob) await oldCheckOutJob.remove();
+      checkOutJobs.push({
+        name: 'checkOutJob',
+        data: transcation,
+        opts: {
+          delay: Number(transcation.endedAt) - Number(Date.now()),
+          jobId: transcation.id,
+        },
+      });
     }
+
+    await this.roomCheckInQueue.addBulk(checkInJobs);
+    await this.roomCheckOutQueue.addBulk(checkOutJobs);
 
     return true;
   }

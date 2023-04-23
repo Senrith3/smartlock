@@ -21,8 +21,8 @@
     "test:e2e": "jest --config ./test/jest-e2e.json"
   },
   "dependencies": {
-    "@bull-board/api": "^5.0.0",
-    "@bull-board/express": "^5.0.0",
+    "@bull-board/api": "^5.0.1",
+    "@bull-board/express": "^5.0.1",
     "@liaoliaots/nestjs-redis": "^9.0.4",
     "@nestjs-modules/mailer": "^1.8.1",
     "@nestjs/bull": "^0.6.3",
@@ -39,6 +39,7 @@
     "class-transformer": "^0.5.1",
     "class-validator": "^0.13.2",
     "cloudinary": "^1.33.0",
+    "express-basic-auth": "^1.2.1",
     "handlebars": "^4.7.7",
     "helmet": "^6.0.1",
     "ioredis": "^5.2.4",

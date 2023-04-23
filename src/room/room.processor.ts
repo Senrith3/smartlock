@@ -1,13 +1,34 @@
 import { Processor, Process } from '@nestjs/bull';
 import { Job } from 'bull';
 import { CheckInDto } from './dto/check-in.dto';
-import { InjectRedis } from '@liaoliaots/nestjs-redis';
 import { MailerService } from '@nestjs-modules/mailer';
-import Redis from 'ioredis';
 import { TwilioService } from 'nestjs-twilio';
 import { CloudinaryService } from 'src/cloudinary/cloudinary.service';
+import { RoomService } from './room.service';
 import * as QRCode from 'qrcode';
 import * as moment from 'moment';
+
+@Processor('room-check-in')
+export class RoomCheckInConsumer {
+  constructor(private roomService: RoomService) {}
+
+  @Process('checkInJob')
+  async process(job: Job<CheckInDto>) {
+    const data = job.data;
+    await this.roomService.checkIn(data);
+  }
+}
+
+@Processor('room-check-out')
+export class RoomCheckOutConsumer {
+  constructor(private roomService: RoomService) {}
+
+  @Process('checkOutJob')
+  async process(job: Job<CheckInDto>) {
+    const data = job.data;
+    await this.roomService.checkOut(data);
+  }
+}
 
 @Processor('send-code')
 export class SendCodeConsumer {
@@ -15,7 +36,6 @@ export class SendCodeConsumer {
     private mailerService: MailerService,
     private readonly twilioService: TwilioService,
     private cloudinary: CloudinaryService,
-    @InjectRedis() private readonly redis: Redis,
   ) {}
 
   @Process('sendCodeJob')
