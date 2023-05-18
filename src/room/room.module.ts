@@ -23,8 +23,8 @@ import { ScheduleModule } from '@nestjs/schedule';
         service: 'gmail',
         secure: false,
         auth: {
-          user: 'ney.senrith19@kit.edu.kh',
-          pass: '015779765',
+          user: process.env.RESORT_EMAIL,
+          pass: process.env.RESORT_EMAIL_PASSWORD,
         },
       },
       defaults: {
